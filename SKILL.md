@@ -1,10 +1,13 @@
 ---
 name: obsidian-tasknotes
 description: >
-  Manage tasks for the Obsidian TaskNotes plugin via CLI tools and scripts.
-  Supports CRUD, NLP creation, time tracking, filtering, and project views.
-  Works offline (mtn) or with Obsidian running (tn/API).
-  Triggers on "/tn" commands or mentions of TaskNotes tasks in Obsidian.
+  Manage tasks, to-dos, and task lists in Obsidian. The default skill for all
+  task management: creating tasks, listing tasks, completing tasks, searching
+  tasks, tracking time, viewing overdue/today tasks, and project task views.
+  Triggers on: "/tn", "tasks", "task list", "to-do", "todo", "overdue tasks",
+  "what's due", "my tasks", "create a task", "task status", "time tracking",
+  "pomodoro", or any task/todo-related request involving Obsidian or the vault.
+  Do NOT use for ac-tasks, ac-skill, or ac-* commands — those use ac-tasks skill.
 version: "1.0.0"
 user-invocable: true
 context: fork
