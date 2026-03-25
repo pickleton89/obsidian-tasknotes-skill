@@ -64,6 +64,8 @@ Parse the command:
 | `timer-log [--period P]` | Show time tracking log |
 | `projects [list\|show NAME]` | Project overview |
 | `pomodoro [start\|stop\|status]` | Pomodoro timer (API-only) |
+| `install [--source PATH]` | Install/update skill into vault |
+| `check-update` | Check if installed skill is outdated |
 | `setup` | Install/configure CLI tools |
 | `help` | Show available commands |
 
@@ -302,6 +304,29 @@ uv run python scripts/tn_manager.py --vault <vault-path> pomodoro status
 uv run python scripts/tn_manager.py --vault <vault-path> pomodoro stop
 ```
 
+### /tn install
+
+Install or update the skill into a vault. Copies `SKILL.md`, `scripts/`, and `references/`
+into `{vault}/.claude/skills/obsidian-tasknotes/`. No symlinks -- all files are copied for
+Obsidian sync compatibility. The command is idempotent.
+
+```bash
+uv run python scripts/tn_manager.py --vault <vault-path> install
+```
+
+Use `--source` to specify a different skill repo location:
+```bash
+uv run python scripts/tn_manager.py --vault <vault-path> install --source /path/to/skill-repo
+```
+
+### /tn check-update
+
+Check if the installed skill in the vault is outdated compared to the source repo.
+
+```bash
+uv run python scripts/tn_manager.py --vault <vault-path> check-update
+```
+
 ### /tn setup
 
 Install and configure the CLI tools. Detects what's already installed and only installs
@@ -393,12 +418,35 @@ Both `mtn` and `tn` support title-based task matching:
 
 ## Installation & Updates
 
-**Install into a vault:**
+**Install skill into a vault** (copies files, no symlinks):
+```bash
+uv run python scripts/tn_manager.py --vault /path/to/vault install
+```
+
+**Update the skill** (pull latest from repo, then re-install):
+```bash
+cd /path/to/obsidian-tasknotes-skill
+git pull
+uv run python scripts/tn_manager.py --vault /path/to/vault install
+```
+
+**Check for updates:**
+```bash
+uv run python scripts/tn_manager.py --vault /path/to/vault check-update
+```
+
+**Install CLI tools** (separate from skill installation):
 ```bash
 uv run python scripts/tn_manager.py --vault /path/to/vault setup
 ```
 
-**What gets installed (via setup):**
+**What gets installed into the vault** (via `install`):
+- `SKILL.md` -- skill definition
+- `scripts/` -- Python orchestrator (common.py, tn_manager.py)
+- `references/` -- frontmatter spec and API reference
+- `.installed-version` -- version marker for update checks
+
+**What gets installed globally** (via `setup`):
 - `mdbase-tasknotes` (npm global) -- provides `mtn` command
 - `tasknotes-cli` (git clone + npm link) -- provides `tn` command
 - Configuration for both tools pointing to the vault

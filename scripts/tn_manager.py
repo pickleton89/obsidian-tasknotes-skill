@@ -792,6 +792,138 @@ def cmd_setup(args):
     print("Setup complete.")
 
 
+def cmd_install(args):
+    """Install or update the skill into a vault by copying files."""
+    source = Path(args.source) if args.source else Path(__file__).parent.parent
+    vault_path = args.vault
+
+    if not vault_path:
+        vault = discover_vault()
+        if vault:
+            vault_path = str(vault)
+        else:
+            print("Error: No vault found. Specify --vault PATH.", file=sys.stderr)
+            sys.exit(1)
+
+    if not Path(vault_path).exists():
+        print(f"Error: Vault path not found: {vault_path}", file=sys.stderr)
+        sys.exit(1)
+
+    if not source.exists():
+        print(f"Error: Source directory not found: {source}", file=sys.stderr)
+        sys.exit(1)
+
+    target = Path(vault_path) / ".claude" / "skills" / "obsidian-tasknotes"
+    updating = target.exists()
+
+    # Files/dirs to copy (runtime-essential only)
+    include = ["SKILL.md", "scripts", "references"]
+
+    target.mkdir(parents=True, exist_ok=True)
+    copied = []
+
+    for item_name in include:
+        src = source / item_name
+        dst = target / item_name
+        if not src.exists():
+            continue
+        if src.is_file():
+            shutil.copy2(src, dst)
+        elif src.is_dir():
+            if dst.exists():
+                shutil.rmtree(dst)
+            shutil.copytree(src, dst, ignore=shutil.ignore_patterns(
+                "__pycache__", "*.pyc", ".DS_Store",
+            ))
+        copied.append(item_name)
+
+    # Write a version marker for update checks
+    version_file = target / ".installed-version"
+    skill_md = source / "SKILL.md"
+    version = "1.0.0"
+    if skill_md.exists():
+        for line in skill_md.read_text(encoding="utf-8").split("\n"):
+            if line.strip().startswith("version:"):
+                version = line.split(":", 1)[1].strip().strip('"').strip("'")
+                break
+    version_file.write_text(f"{version}\n", encoding="utf-8")
+    copied.append(".installed-version")
+
+    action = "Updated" if updating else "Installed"
+    result = {
+        "action": action.lower(),
+        "source": str(source),
+        "target": str(target),
+        "version": version,
+        "files": copied,
+    }
+
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(f"{action} obsidian-tasknotes skill (v{version})")
+        print(f"  Source: {source}")
+        print(f"  Target: {target}")
+        for name in copied:
+            print(f"    + {name}")
+        if not updating:
+            print()
+            print("  Next steps:")
+            print("  1. Run: /tn setup   (to install/configure CLI tools)")
+            print("  2. Enable 'mdbase spec' in TaskNotes Settings -> Integrations")
+
+
+def cmd_check_update(args):
+    """Check if the installed skill is outdated compared to the source repo."""
+    source = Path(args.source) if args.source else Path(__file__).parent.parent
+    vault_path = args.vault
+
+    if not vault_path:
+        vault = discover_vault()
+        if vault:
+            vault_path = str(vault)
+        else:
+            print("Error: No vault found. Specify --vault PATH.", file=sys.stderr)
+            sys.exit(1)
+
+    target = Path(vault_path) / ".claude" / "skills" / "obsidian-tasknotes"
+    version_file = target / ".installed-version"
+
+    if not target.exists():
+        print("Skill is not installed in this vault.")
+        print(f"Run: uv run python scripts/tn_manager.py --vault {vault_path} install")
+        return
+
+    installed_version = "unknown"
+    if version_file.exists():
+        installed_version = version_file.read_text(encoding="utf-8").strip()
+
+    source_version = "unknown"
+    skill_md = source / "SKILL.md"
+    if skill_md.exists():
+        for line in skill_md.read_text(encoding="utf-8").split("\n"):
+            if line.strip().startswith("version:"):
+                source_version = line.split(":", 1)[1].strip().strip('"').strip("'")
+                break
+
+    result = {
+        "installed": installed_version,
+        "available": source_version,
+        "up_to_date": installed_version == source_version,
+        "target": str(target),
+        "source": str(source),
+    }
+
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        if installed_version == source_version:
+            print(f"Skill is up to date (v{installed_version})")
+        else:
+            print(f"Update available: v{installed_version} -> v{source_version}")
+            print(f"Run: uv run python scripts/tn_manager.py --vault {vault_path} install")
+
+
 def cmd_help(args):
     """Show available commands."""
     print("""Obsidian TaskNotes Skill -- Commands
@@ -811,6 +943,8 @@ def cmd_help(args):
   /tn timer-log [--period P]       Show time tracking log
   /tn projects [list|show NAME]    Project overview
   /tn pomodoro [start|stop|status] Pomodoro timer (API-only)
+  /tn install [--source PATH]      Install/update skill into vault
+  /tn check-update                 Check if installed skill is outdated
   /tn setup                        Install/configure CLI tools
   /tn help                         This help message
 
@@ -943,6 +1077,14 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("pomodoro", help="Pomodoro timer (API-only)")
     p.add_argument("action", nargs="?", help="start, stop, pause, resume, status")
 
+    # install
+    p = sub.add_parser("install", help="Install/update skill into vault")
+    p.add_argument("--source", help="Path to skill repo (default: auto-detect)")
+
+    # check-update
+    p = sub.add_parser("check-update", help="Check if installed skill is outdated")
+    p.add_argument("--source", help="Path to skill repo (default: auto-detect)")
+
     # setup
     sub.add_parser("setup", help="Install/configure CLI tools")
 
@@ -991,6 +1133,8 @@ def main():
         "timer-log": cmd_timer_log,
         "projects": cmd_projects,
         "pomodoro": cmd_pomodoro,
+        "install": cmd_install,
+        "check-update": cmd_check_update,
         "setup": cmd_setup,
         "help": cmd_help,
     }
